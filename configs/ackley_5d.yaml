@@ -1,0 +1,92 @@
+# REBMBO Configuration for Ackley 5D Benchmark (OPTIMIZED)
+# Ackley function: complex multi-modal landscape with many local minima
+# Domain: [-5, 5]^5 scaled to [0, 1]^5 for standardization
+#
+# OPTIMIZATIONS APPLIED:
+# 1. Increased iterations: 30 → 50 (more exploration budget)
+# 2. Higher entropy coefficient: 0.01 → 0.05 (more action diversity)
+# 3. Reduced EBM gamma: 0.5 → 0.3 (less EBM interference early on)
+# 4. Smaller mini_batch_size: 64 → 32 (more frequent PPO updates)
+# 5. Improved EBM settings for value-weighted training
+
+task:
+  name: ackley_5d
+  dim: 5
+  bounds: [0.0, 1.0]  # Scaled domain
+  original_bounds: [-5.0, 5.0]  # Original domain
+  optimal_value: 0.0  # Global minimum at origin
+  description: "Ackley function in 5D with many local minima"
+
+# Ackley function parameters
+ackley:
+  a: 20
+  b: 0.2
+  c: 6.283185307179586  # 2*pi
+
+# GP Module Settings (Module A)
+gp:
+  variant: classic  # Options: classic, sparse, deep
+  kernel: rbf_matern_mix  # Mixture of RBF and Matérn-5/2
+  num_inducing: 50  # For sparse GP
+  hidden_dims: [64, 64]  # For deep GP
+  latent_dim: 32  # For deep GP
+  train_epochs: 100
+  retrain_epochs: 50
+  learning_rate: 0.1
+
+# EBM Module Settings (Module B) - OPTIMIZED
+ebm:
+  hidden_dims: [128, 128, 64]
+  mcmc_steps: 30           # INCREASED: 20 → 30 (better MCMC samples)
+  mcmc_step_size: 0.05     # DECREASED: 0.1 → 0.05 (more stable sampling)
+  num_negative_samples: 128  # INCREASED: 100 → 128 (more diverse negatives)
+  train_epochs: 100
+  retrain_epochs: 50
+  learning_rate: 0.001
+  temperature: 1.0         # NEW: for value-weighted training softmax
+
+# PPO Module Settings (Module C) - OPTIMIZED
+ppo:
+  hidden_dims: [256, 256]
+  lr_actor: 0.0003
+  lr_critic: 0.001
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_epsilon: 0.2
+  ppo_epochs: 10
+  mini_batch_size: 32      # DECREASED: 64 → 32 (more frequent updates)
+  entropy_coef: 0.05       # INCREASED: 0.01 → 0.05 (more exploration)
+  value_coef: 0.5
+  max_grad_norm: 0.5
+
+# Acquisition Function Settings - OPTIMIZED
+acquisition:
+  beta: 2.0                # UCB exploration parameter (keep as is)
+  gamma: 0.3               # DECREASED: 0.5 → 0.3 (reduce EBM weight early)
+  lambda_energy: 0.2       # DECREASED: 0.3 → 0.2 (less energy penalty in reward)
+
+# State Encoding
+state:
+  num_grid_points: 50  # Points for state representation
+
+# Optimization Settings - OPTIMIZED
+optimization:
+  n_init: 5  # Initial random samples
+  n_iterations_short: 50   # INCREASED: 30 → 50 (more budget)
+  n_iterations_long: 100   # INCREASED: 50 → 100 (extended run)
+  use_ppo: true
+
+# Experiment Settings
+experiment:
+  seeds: [1, 2, 3, 4, 5]  # 5 independent runs
+  save_results: true
+  verbose: true
+  
+# Device Settings
+device: auto  # auto, cuda, cpu
+
+# Logging
+logging:
+  level: INFO
+  save_logs: true
+  log_interval: 1

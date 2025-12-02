@@ -1,0 +1,186 @@
+# REBMBO Configuration for Rosetta Protein Design 86D Benchmark
+# Real-world antibody engineering task
+#
+# Paper definition (Appendix B - Rosetta Protein Design 86D):
+#   Input: x ∈ R^86 encoding structural modifications to reference antibody
+#   Target: SARS-CoV-2 spike protein binding
+#   Output: ΔΔG (change in binding free energy)
+#   Objective: Minimize ΔΔG (maximize -ΔΔG)
+#   Simulator: Rosetta Flex (expensive CPU time per query)
+#
+# Characteristics:
+#   - Real-world drug design application
+#   - High dimensional (86D)
+#   - No analytical form (true black-box)
+#   - Expensive function evaluations
+#   - Complex non-linear response surface
+#
+# Key considerations:
+#   - Use sparse GP for 86D (classic GP possible but slow)
+#   - Balance exploration in high-dim space
+#   - Handle expensive evaluations efficiently
+
+# ============ Benchmark Settings ============
+benchmark:
+  name: "Rosetta-86D"
+  dim: 86
+  bounds: [0.0, 1.0]  # Normalized bounds
+  
+  # Original domain varies per parameter (structural modifications)
+  # Typically normalized to [0, 1] for optimization
+  
+  # Optimal solution unknown (real black-box)
+  optimal_value: null
+  
+  description: "Antibody engineering for SARS-CoV-2, minimize binding free energy ΔΔG"
+  
+  # Application context
+  application:
+    target: "SARS-CoV-2 spike protein"
+    metric: "ΔΔG (binding free energy change)"
+    goal: "minimize ΔΔG (maximize -ΔΔG for neutralization)"
+
+# ============ Experiment Settings ============
+experiment:
+  n_init: 15            # Initial random samples
+  n_iterations_T50: 50  # Paper Table 2: T=50
+  n_iterations_T80: 80  # Paper Table 2: T=80
+  seeds: [1, 2, 3, 4, 5]  # 5 independent runs
+  use_mock: true        # Set false to use actual Rosetta simulator
+
+# ============ GP Configuration (Module A) ============
+# Sparse GP recommended for 86D (classic GP possible but slower)
+gp:
+  variant: "sparse"     # Recommended for 86D
+  kernel_type: "rbf_matern_mix"  # Mixture kernel
+  
+  # Sparse GP settings
+  num_inducing: 80      # Inducing points for 86D
+  
+  # Deep GP settings (alternative)
+  hidden_dims: [128, 64]
+  latent_dim: 48
+  
+  # Training
+  train_epochs: 150
+  retrain_epochs: 80
+  learning_rate: 0.08
+
+# ============ EBM Configuration (Module B) ============
+ebm:
+  # Larger network for 86D state space
+  hidden_dims: [384, 384, 192]
+  
+  # MCMC settings
+  mcmc_steps: 45        # More steps for high-dim exploration
+  mcmc_step_size: 0.025 # Smaller steps for stability
+  num_negative_samples: 384  # More negatives for coverage
+  
+  # Training
+  train_epochs: 120
+  retrain_epochs: 60
+  learning_rate: 0.0008
+  temperature: 1.0
+
+# ============ Acquisition Function ============
+acquisition:
+  # EBM-UCB: α(x) = μ(x) + β·σ(x) - γ·E_θ(x)
+  beta: 2.8    # Higher exploration for 86D
+  gamma: 0.25  # Moderate EBM weight
+
+# ============ PPO Configuration (Module C) ============
+ppo:
+  enabled: true
+  
+  # Larger network for 86D action space
+  hidden_dims: [768, 384, 192]
+  
+  # Learning rates
+  lr_actor: 1.5e-4
+  lr_critic: 7.5e-4
+  
+  # PPO hyperparameters
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_epsilon: 0.2
+  entropy_coef: 0.08    # Higher entropy for 86D exploration
+  value_coef: 0.5
+  max_grad_norm: 0.5
+  
+  # Training
+  epochs: 12
+  mini_batch_size: 48
+  
+  # Reward shaping
+  lambda_energy: 0.2
+
+# ============ State Encoder ============
+state_encoder:
+  num_grid_points: 30   # Per-dimension sampling for 86D
+
+# ============ Rosetta Simulator Settings ============
+# Only used when use_mock: false
+rosetta:
+  # Path to Rosetta installation
+  rosetta_path: null  # Set to actual path
+  
+  # Rosetta Flex parameters
+  flex_iterations: 100
+  temperature: 1.0
+  
+  # Reference antibody structure
+  reference_pdb: null  # Path to reference PDB file
+  
+  # Timeout per evaluation (seconds)
+  timeout: 3600  # 1 hour max per evaluation
+  
+  # Caching
+  use_cache: true
+  cache_dir: "./rosetta_cache"
+
+# ============ Output Settings ============
+output:
+  save_dir: "results/rosetta_86d"
+  save_figures: true
+  save_logs: true
+  verbose: true
+
+# ============ Device Settings ============
+device: "cuda"  # GPU recommended
+
+# ============ Paper Reference ============
+# From Table 2 (Real-world benchmarks):
+# | Model       | Rosetta 86D     |
+# |             | T=50    | T=80  |
+# |-------------|---------|-------|
+# | BALLET-ICI  | 76.75   | 83.98 |
+# | EARL-BO     | 74.78   | 81.93 |
+# | TuRBO       | 72.47   | 79.86 |
+# | Two-step EI | 78.90   | 84.75 |
+# | KG          | 79.79   | 85.20 |
+# | REBMBO-C    | 80.96   | 83.33 |
+# | REBMBO-D    | 84.22   | 90.84 |
+# | REBMBO-S    | 80.53   | 88.88 |
+#
+# Note: REBMBO-D shows best performance on this benchmark
+
+# ============ Computational Notes ============
+# Mock mode:
+#   - ~1-5 seconds per evaluation
+#   - Total time: ~10-30 minutes per seed
+#
+# Real Rosetta mode:
+#   - Minutes to hours per evaluation
+#   - Total time: Days to weeks per seed
+#   - CPU-intensive, consider distributed computing
+
+# ============ Biology Context ============
+# ΔΔG represents change in binding free energy:
+#   - Negative ΔΔG: Improved binding (desired)
+#   - Positive ΔΔG: Weakened binding (undesired)
+#   - Goal: Find mutations that minimize ΔΔG
+#
+# SARS-CoV-2 considerations:
+#   - Variants (e.g., Omicron) have positive charge
+#   - Antibodies need negative surface potential
+#   - Strong van der Waals interactions post-binding

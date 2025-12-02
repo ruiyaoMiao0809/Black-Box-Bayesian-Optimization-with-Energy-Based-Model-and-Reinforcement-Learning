@@ -1,0 +1,144 @@
+# REBMBO Configuration for HDBO 200D Benchmark
+# High-Dimensional Bayesian Optimization benchmark
+#
+# Paper definition (Appendix B - HDBO-200D):
+#   f(x) = Σ_{i=1}^{200} e^(x_i)
+#   Domain: [-5, 5]^200 (scaled to [0, 1]^200)
+#   Optimal: x* = (-5, -5, ..., -5) -> (0, 0, ..., 0) in scaled domain
+#   Optimal value: f(x*) = 200 * e^(-5) ≈ 1.348 (minimization)
+#                  For maximization: -1.348
+#
+# Characteristics:
+#   - High dimensional (200D)
+#   - Additive structure but challenging
+#   - Tests scalability and exploration
+#   - Known ground-truth for evaluation
+#
+# Key optimizations for 200D:
+#   - MUST use Sparse GP (classic GP infeasible at O(n³))
+#   - Larger networks for state representation
+#   - More inducing points for GP approximation
+#   - Higher exploration for vast search space
+
+# ============ Benchmark Settings ============
+benchmark:
+  name: "HDBO-200D"
+  dim: 200
+  bounds: [0.0, 1.0]  # Normalized bounds
+  original_bounds: [-5.0, 5.0]  # Original domain
+  
+  # Optimal solution (in normalized [0,1] domain)
+  # x* = 0 maps to -5 in original domain
+  optimal_x: 0.0  # All components should be 0
+  optimal_value: -1.3476  # -200 * exp(-5) for maximization
+  
+  description: "Sum of exponentials in 200D, tests high-dimensional scalability"
+
+# ============ Experiment Settings ============
+experiment:
+  n_init: 20            # More initial points for 200D
+  n_iterations_T50: 50  # Paper Table 1: T=50
+  n_iterations_T100: 100  # Paper Table 1: T=100
+  seeds: [1, 2, 3, 4, 5]  # 5 independent runs
+  use_mock: false       # No mock needed - simple function
+
+# ============ GP Configuration (Module A) ============
+# CRITICAL: Must use Sparse GP for 200D (classic GP is O(n³))
+gp:
+  variant: "sparse"     # REQUIRED for high dimensions
+  kernel_type: "rbf"    # RBF kernel for smoothness
+  
+  # Sparse GP settings
+  num_inducing: 100     # More inducing points for 200D
+  
+  # Training
+  train_epochs: 200     # More epochs for complex landscape
+  retrain_epochs: 100   # Thorough retraining
+  learning_rate: 0.05   # Slightly lower for stability
+
+# ============ EBM Configuration (Module B) ============
+ebm:
+  # Larger network for 200D state space
+  hidden_dims: [512, 512, 256]
+  
+  # MCMC settings - more steps for high-dim
+  mcmc_steps: 50        # More steps for 200D exploration
+  mcmc_step_size: 0.02  # Smaller steps for stability
+  num_negative_samples: 512  # More negatives for coverage
+  
+  # Training
+  train_epochs: 150
+  retrain_epochs: 80
+  learning_rate: 0.0005  # Lower LR for stability
+  temperature: 1.0
+
+# ============ Acquisition Function ============
+acquisition:
+  # EBM-UCB: α(x) = μ(x) + β·σ(x) - γ·E_θ(x)
+  beta: 3.0    # Higher exploration for 200D
+  gamma: 0.2   # Lower EBM weight (let GP guide more in high-dim)
+
+# ============ PPO Configuration (Module C) ============
+ppo:
+  enabled: true
+  
+  # Larger network for 200D action space
+  hidden_dims: [1024, 512, 256]
+  
+  # Learning rates
+  lr_actor: 1.0e-4      # Lower for stability
+  lr_critic: 5.0e-4
+  
+  # PPO hyperparameters
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_epsilon: 0.2
+  entropy_coef: 0.1     # Higher entropy for 200D exploration
+  value_coef: 0.5
+  max_grad_norm: 0.5
+  
+  # Training
+  epochs: 15            # More PPO epochs
+  mini_batch_size: 64
+  
+  # Reward shaping
+  lambda_energy: 0.15   # Lower energy penalty for high-dim
+
+# ============ State Encoder ============
+state_encoder:
+  # Fewer grid points per dimension (200D makes dense grids infeasible)
+  # Use summary statistics instead
+  num_grid_points: 20   # Per-dimension sampling
+  use_summary_stats: true  # Use mean/std/min/max summaries
+
+# ============ Output Settings ============
+output:
+  save_dir: "results/hdbo_200d"
+  save_figures: true
+  save_logs: true
+  verbose: true
+
+# ============ Device Settings ============
+device: "cuda"  # GPU strongly recommended for 200D
+
+# ============ Paper Reference ============
+# From Table 1 (Synthetic benchmarks):
+# | Model       | HDBO 200D       |
+# |             | T=50    | T=100 |
+# |-------------|---------|-------|
+# | BALLET-ICI  | 79.46   | 85.85 |
+# | EARL-BO     | 77.24   | 83.74 |
+# | TuRBO       | 74.72   | 80.69 |
+# | Two-step EI | 78.10   | 84.42 |
+# | KG          | 79.63   | 85.17 |
+# | REBMBO-S    | 83.33   | 90.16 |
+# | REBMBO-D    | 85.79   | 94.42 |
+# | REBMBO-C    | 85.55   | 90.95 |
+#
+# Note: REBMBO-S (Sparse GP) is recommended for 200D
+# REBMBO-C would be extremely slow due to O(n³) complexity
+
+# ============ Computational Notes ============
+# - Memory: ~4-8 GB GPU memory recommended
+# - Time: ~10-30 minutes per seed depending on hardware
+# - Sparse GP reduces O(n³) to O(nm²) where m=num_inducing

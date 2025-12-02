@@ -1,0 +1,135 @@
+# Nanophotonic 3D Benchmark Configuration
+# Based on paper Appendix B - Nanophotonic Structure Design
+
+# ============ Benchmark Settings ============
+benchmark:
+  name: "Nanophotonic-3D"
+  dim: 2  # Note: "3D" refers to physical simulation, not input dimension
+  bounds: [0, 1]  # Normalized bounds
+  
+  # Original physical bounds
+  original_bounds:
+    thickness: [100, 400]  # nm
+    radius: [10, 200]      # nm
+  
+  # Materials (choose one)
+  materials: "cSi_TiO2"  # Options: cSi_TiO2, GaAs_TiO2, Perovskite_TiO2
+  
+  # Figure of Merit type
+  fom_type: "mean_absorbance"
+  # Options:
+  #   - mean_absorbance: Average absorbance (good for solar cells)
+  #   - weighted_absorbance: AM1.5 solar weighted
+  #   - integrated_absorbance: Area under curve
+  #   - visible_transmittance: Visible range transmission
+  #   - solar_cell_efficiency: Simplified efficiency metric
+
+# ============ Experiment Settings ============
+experiment:
+  n_init: 5
+  n_iterations: 50
+  seeds: [1, 2, 3, 4, 5]  # Paper uses 5 seeds
+  use_mock: true  # Set false to use actual MEEP simulation
+
+# ============ GP Configuration (Module A) ============
+gp:
+  variant: "classic"  # Options: classic, sparse, deep
+  kernel_type: "mixed"  # RBF + Matérn mixture
+  noise_var: 1.0e-4
+  retrain_epochs: 50
+  
+  # For sparse GP variant
+  sparse:
+    n_inducing: 50
+
+# ============ EBM Configuration (Module B) ============
+ebm:
+  hidden_dims: [128, 128, 64]
+  lr: 1.0e-3
+  
+  # MCMC settings for short-run sampling
+  mcmc_steps: 30
+  mcmc_step_size: 0.01
+  num_negative_samples: 128
+  
+  retrain_epochs: 30
+
+# ============ Acquisition Function ============
+acquisition:
+  # EBM-UCB: α(x) = μ(x) + β·σ(x) - γ·E_θ(x)
+  beta: 2.0   # UCB exploration weight
+  gamma: 0.35  # EBM weight (moderate for multi-modal landscape)
+
+# ============ PPO Configuration (Module C) ============
+ppo:
+  enabled: true
+  hidden_dims: [256, 256]
+  
+  # Learning rates
+  lr_actor: 3.0e-4
+  lr_critic: 1.0e-3
+  
+  # PPO hyperparameters
+  gamma: 0.99           # Discount factor
+  gae_lambda: 0.95      # GAE lambda
+  clip_epsilon: 0.2     # PPO clip range
+  entropy_coef: 0.05    # Entropy bonus (exploration)
+  value_coef: 0.5       # Value loss weight
+  
+  # Training
+  epochs: 10
+  mini_batch_size: 32
+  
+  # Reward shaping
+  lambda_energy: 0.3    # r = f(x) - λ·E_θ(x)
+
+# ============ State Encoder ============
+state_encoder:
+  num_grid_points: 80  # Grid for state representation
+
+# ============ Output Settings ============
+output:
+  save_dir: "results/nanophotonic_3d"
+  save_figures: true
+  save_logs: true
+  verbose: true
+
+# ============ Device Settings ============
+device: "cuda"  # Use "cpu" if GPU not available
+
+# ============ Expected Performance ============
+# Note: Optimal is unknown for real black-box
+# These are estimates based on mock function
+expected_performance:
+  mock_mode:
+    mean_absorbance:
+      typical_range: [0.5, 0.85]
+      good_result: "> 0.75"
+    
+  meep_simulation:
+    # Depends heavily on material combination
+    cSi_TiO2:
+      typical_range: [0.4, 0.8]
+    GaAs_TiO2:
+      typical_range: [0.45, 0.85]
+
+# ============ Paper Reference ============
+# From Table 2 (Real-world benchmarks):
+# | Model       | Nanophotonic 3D |
+# |             | T=50    | T=80  |
+# |-------------|---------|-------|
+# | BALLET-ICI  | 83.77   | 88.64 |
+# | EARL-BO     | 81.72   | 86.58 |
+# | TuRBO       | 79.75   | 84.81 |
+# | Two-step EI | 84.29   | 89.47 |
+# | KG          | 85.10   | 90.05 |
+# | REBMBO-C    | 87.25   | 92.65 |
+# | REBMBO-D    | 81.66   | 91.53 |
+# | REBMBO-S    | 86.50   | 93.99 |
+
+# ============ Hyperparameter Tuning Notes ============
+# Key differences from synthetic benchmarks:
+# 1. Lower dimension (2D) - Classic GP is sufficient
+# 2. Expensive evaluations - Fewer iterations needed
+# 3. Multiple basins - Moderate EBM weight (gamma=0.35)
+# 4. Unknown optimal - Use normalized score for comparison

@@ -1,0 +1,26 @@
+task_name: branin_2d
+input_dim: 2
+
+# Branin 标准定义域 [(-5, 10), (0, 15)]
+bounds:
+  - [-5.0, 0.0]    # x1 lower, x2 lower
+  - [10.0, 15.0]   # x1 upper, x2 upper
+
+T: 50              # 总评估预算
+n0: 5              # 初始采样点数
+
+# 对应论文超参
+beta: 2.0          # EBM-UCB (消融用)
+gamma: 0.5         # EBM-UCB (消融用)
+"lambda": 5.0     # PPO 奖励权重 (必须加引号!)
+
+gp:
+  state_dim: 6     # 对应 _build_state 的输出维度
+
+ebm:
+  lr: 0.001
+
+ppo:
+  lr: 0.001
+  gamma: 0.95
+  clip_eps: 0.2

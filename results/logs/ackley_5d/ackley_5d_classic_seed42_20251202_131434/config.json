@@ -1,0 +1,7 @@
+{
+  "benchmark": "ackley_5d",
+  "variant": "classic",
+  "seed": 42,
+  "config": {},
+  "start_time": "2025-12-02T13:14:34.216973"
+}

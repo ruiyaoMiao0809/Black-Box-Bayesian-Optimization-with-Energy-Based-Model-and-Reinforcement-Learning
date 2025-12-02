@@ -1,0 +1,7 @@
+{
+  "benchmark": "rosenbrock_8d",
+  "variant": "classic",
+  "seed": 42,
+  "config": {},
+  "start_time": "2025-12-02T14:15:27.684030"
+}

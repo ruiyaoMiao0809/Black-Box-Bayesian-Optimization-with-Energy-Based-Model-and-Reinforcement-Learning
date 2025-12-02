@@ -1,0 +1,98 @@
+# REBMBO Configuration for Rosenbrock 8D Benchmark (OPTIMIZED)
+#
+# Rosenbrock function (Banana function):
+#   f(x) = Σ_{i=1}^{7} [100*(x_{i+1} - x_i^2)^2 + (1 - x_i)^2]
+#   Domain: [-2, 2]^8 scaled to [0, 1]^8
+#   Global minimum: f(x*) = 0 at x* = (1, 1, ..., 1)
+#   In [0,1] domain: optimal at (0.75, 0.75, ..., 0.75)
+#
+# Characteristics:
+#   - Uni-modal (single global minimum)
+#   - Narrow, curved valley leading to minimum
+#   - Difficult due to curvature, not multiple local minima
+#   - Tests GP's ability to model complex curvature
+#   - Tests exploration to find and follow the valley
+#
+# OPTIMIZATIONS for 8D:
+#   - Larger networks for higher-dimensional state space
+#   - More exploration (higher entropy)
+#   - Lower EBM weight (let GP guide exploration)
+#   - More initial samples and iterations
+
+task:
+  name: rosenbrock_8d
+  dim: 8
+  bounds: [0.0, 1.0]  # Scaled domain
+  original_bounds: [-2.0, 2.0]  # Original domain from paper
+  optimal_value: 0.0  # Global minimum (maximized, so we seek 0)
+  optimal_x: [0.75, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75]
+  description: "Rosenbrock 8D - Banana function with curved valley"
+
+# GP Module Settings (Module A)
+# Important for capturing the curved valley structure
+gp:
+  variant: classic  # Options: classic, sparse, deep
+  kernel: rbf_matern_mix  # Mixture captures different length scales
+  num_inducing: 100  # More for 8D (sparse GP)
+  hidden_dims: [128, 128]  # For deep GP
+  latent_dim: 64  # For deep GP
+  train_epochs: 150  # More epochs for better curvature fit
+  retrain_epochs: 50
+  learning_rate: 0.1
+
+# EBM Module Settings (Module B) - OPTIMIZED for 8D
+ebm:
+  hidden_dims: [256, 256, 128]  # Larger network for 8D
+  mcmc_steps: 40          # More MCMC steps for 8D
+  mcmc_step_size: 0.03    # Smaller step size for stability
+  num_negative_samples: 256  # More negatives for 8D diversity
+  train_epochs: 100
+  retrain_epochs: 50
+  learning_rate: 0.001
+  temperature: 1.0        # For value-weighted training
+
+# PPO Module Settings (Module C) - OPTIMIZED for 8D
+ppo:
+  hidden_dims: [512, 256]  # Larger for 8D state space
+  lr_actor: 0.0003
+  lr_critic: 0.001
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_epsilon: 0.2
+  ppo_epochs: 10
+  mini_batch_size: 32      # Smaller for more updates
+  entropy_coef: 0.08       # Higher for 8D exploration
+  value_coef: 0.5
+  max_grad_norm: 0.5
+
+# Acquisition Function Settings - OPTIMIZED for Rosenbrock
+acquisition:
+  beta: 2.5               # Slightly higher UCB for exploration
+  gamma: 0.25             # Lower EBM weight (let GP guide)
+  lambda_energy: 0.15     # Lower energy penalty in reward
+
+# State Encoding
+state:
+  num_grid_points: 100    # More points for 8D
+
+# Optimization Settings
+optimization:
+  n_init: 10              # More initial samples for 8D
+  n_iterations_short: 50  # T=50 
+  n_iterations_long: 100  # T=100 for extended runs
+  use_ppo: true
+
+# Experiment Settings
+experiment:
+  seeds: [1, 2, 3, 4, 5]  # 5 independent runs
+  save_results: true
+  verbose: true
+  
+# Device Settings
+device: auto  # auto, cuda, cpu
+
+# Logging
+logging:
+  level: INFO
+  save_logs: true
+  log_interval: 1
