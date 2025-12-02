@@ -1,0 +1,10 @@
+﻿numpy
+scipy
+pandas
+matplotlib
+pyyaml
+tqdm
+einops
+gpytorch
+gymnasium
+rich
